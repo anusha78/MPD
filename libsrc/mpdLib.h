@@ -14,6 +14,10 @@
  */
 
 #include "stdio.h"
+#include "gef/gefcmn_vme.h"
+//#ifndef VXWORKS
+//#include "jvme.h"
+//#endif
 #define MPD_BOARD_ID       0x12345678
 #define MPD_MAX_BOARDS             21
 //#define MPD_MAX_APV                16

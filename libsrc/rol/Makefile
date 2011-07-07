@@ -15,7 +15,7 @@ DEBUG=1
 #
 
 # Plug in your primary readout lists here..
-VMEROL			= vme_list.so mpd_list.so fadc_list.so
+VMEROL			= mpd_list.so
 # Add shared library dependencies here.  (jvme, ti, are already included)
 #ROLLIBS			= 
 ROLLIBS			= -lfadc -lremex -lmpd -lconfig
@@ -36,8 +36,9 @@ CFLAGS			= -Wall -g
 else
 CFLAGS			= -O3
 endif
-CFLAGS			+= -w -I${LINUXVME_INC} -I. -I/usr/include -I${CODA}/common/include\
+CFLAGS			+= -w -I/usr/include -I${LINUXVME_INC} -I. -I${CODA}/common/include\
 			  -L${LINUXVME_LIB} -L. -DJLAB
+#
 CFLAGS			+= -lrt -lpthread -ljvme -lti $(ROLLIBS)
 CFLAGS			+= -DLINUX -DDAYTIME=\""`date`"\"
 

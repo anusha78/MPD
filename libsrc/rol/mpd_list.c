@@ -60,9 +60,9 @@ int h,i,j,k,kk,m, evt=0;
 #define EVENT_TAG   0x10000000
 #define MPD_TAG     0x20000000
 #define ADC_TAG     0x30000000
-#define HEADER_TAG  0x40000000
+#define HEADER_TAG  0x00000040
 #define DATA_TAG    0x0
-#define TRAILER_TAG 0x50000000
+#define TRAILER_TAG 0x00000050
 
 #define FILE_VERSION 0x1
 // End of MPD definition
@@ -330,30 +330,31 @@ rocTrigger(int arg)
  BANKOPEN(10,BT_UI4,0);
  vmeDmaConfig(2,2,0); 
   rtout=0;
-
+  
   for (k=0;k<fnMPD;k++) { // only active mpd set
     i = mpdSlot(k);
     mpdArmReadout(i); // prepare internal variables for readout
   }
   
   rdone = 1;
-
+  
   for (kk=0;kk<fnMPD;kk++) { // only active mpd set
+    //  printf("nbofMPD: %d",kk);
      i = mpdSlot(kk);
      do
        { // wait for data in MPD
      	 rdone = mpdFIFO_ReadAll(i,&rtout,&error_count);
-	 printf(" fn: %d Evt: %d Rdone/ Tout/ error = %d %d %d\n", kk,evt,rdone, rtout, error_count);
+	 //printf(" fn: %d Evt: %d Rdone/ Tout/ error = %d %d %d\n", kk,evt,rdone, rtout, error_count);
 	 rtout++;
-       }while((rdone!=1||error_count!=0)&&(rtout < MPD_TIMEOUT)); // timeout can be changed
-  
+       }while((rdone!=1||error_count!=0)&&(rtout < MPD_TIMEOUT)); // timeout can be changed   
+
   if ((error_count != 0) || (rtout > MPD_TIMEOUT)) { // reset MPD on error or timeout
 	  printf("%s: ERROR in readout, clear fifo\n",__FUNCTION__);
 	  mpdFIFO_ClearAll(i);
 	  mpdTRIG_Enable(i);
 	  }
-    
-    if(rdone!=0&&error_count==0)
+
+    if(rdone==1&&error_count==0)
       { // data need to be written on file
 
 
@@ -370,39 +371,41 @@ rocTrigger(int arg)
 	    dma_dabufp++;		
 	    //CODA buf_apvNumber
 	    k=0; // buffer element index
-	    v_data=mpdApvGetBufferSample(i,j);printf("number of sample:%d",v_data);
+	    v_data=mpdApvGetBufferSample(i,j);//printf("number of sample:%d",v_data);
 	    for (h=0; h<mpdApvGetBufferSample(i,j); h++)// loop on samples 
 	      { e_size=130;
 		e_head0 = mpdApvGetBufferElement(i, j, k);
 		k++;
 		//CODA buf_header
-		*dma_dabufp=LSWAP(e_head0 | HEADER_TAG);
+		*dma_dabufp=(e_head0 | HEADER_TAG);
 		dma_dabufp++;		
 		//CODA buf_header
 		for (m=0;m<e_size-2;m++)
 		  {
 		    //CODA buf_128Channel
-		    v_data=mpdApvGetBufferElement(i,j,k);
-		    *dma_dabufp=LSWAP((v_data & 0xfff) | DATA_TAG);
+		    v_data=mpdApvGetBufferElement(i,j,k);//printf("vdata: %08x",v_data);
+		    *dma_dabufp=((v_data & 0xffff0000) | DATA_TAG);
 		    dma_dabufp++;		
 		    //CODA buf_128Channel
 		    k++;
 		  }
 		// CODA buf_trailer_TSNumber
 		v_data=mpdApvGetBufferElement(i,j,k);
-		*dma_dabufp=LSWAP((v_data & 0xfff) | TRAILER_TAG);
+		*dma_dabufp=((v_data & 0xffff0000) | TRAILER_TAG);
 		dma_dabufp++;
 		// CODA buf_trailer_TSNumber
 		k++;
 	      }
+	    
 	    mpdApvShiftDataBuffer(i,j,k);
 	  } // end loop on apv
 	  
 	}
     
     evt++;
-	  mpdFIFO_ClearAll(i);
+    //mpdFIFO_ClearAll(i);//removed
       }
+  
  BANKCLOSE;
   tiSetOutputPort(0,0,0,0);
 

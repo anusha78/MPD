@@ -196,13 +196,13 @@ mpdInit(UINT32 addr, UINT32 addr_inc, int nmpd, int iFlag)
   int boardID = 0;
   int maxSlot = 1;
   int minSlot = 21;
-  int trigSrc=0, clkSrc=0, srSrc=0;
+  //int trigSrc=0, clkSrc=0, srSrc=0;
   uint32_t csrdata;
   uint32_t csr_const[9]={'C','R',0x08,0x00,0x30,0x00,0x03,0x09,0x04};
-  uint32_t rdata, laddr, laddr_inc, laddr_csr, a32addr, a16addr=0;
-  volatile struct mpd_struct *mpd;
+  uint32_t rdata, laddr, laddr_inc, laddr_csr, a32addr;//, a16addr=0;
+  //volatile struct mpd_struct *mpd;
   volatile struct mpd_struct_csr *mpd_csr;
-  uint16_t sdata;
+  //uint16_t sdata;
   int noBoardInit=0;
   int useList=0;
   int noFirmwareCheck=0;
@@ -2427,15 +2427,17 @@ mpdFIFO_ReadSingle(int id,
   while( (nwords !=780 ) && (i <= max_retry) ) {
     if( max_retry > 0 ) i++;
     success = mpdFIFO_GetNwords(id, channel, &nwords);
+    if(i>1){printf("trying: %d\n",i);}
     if( success != OK ) return success;
   }
-  
+  */
+  nwords = 780;
   //printf("%s: Number of words to be read %d\n",__FUNCTION__,nwords);
   if(nwords!=780){return ERROR;}
-  */
-  //printf("%s: number of words to be read %d\n",__FUNCTION__,nwords);
-  size = 780;//(nwords < wmax) ? nwords : wmax;
   
+  //printf("%s: number of words to be read %d\n",__FUNCTION__,nwords);
+  size = (nwords < wmax) ? nwords : wmax;
+  //size = 780;nwords=780;//testing
   //MPD_DBG("fifo ch = %d, words in fifo= %d, retries= %d (max %d)\n",channel, nwords,i, max_retry);
   //MPD_DBG("  id=%d  channel=%d  physMemBase = 0x%08x   dbuf = 0x%08x\n\n",
   //	  id,channel,fApv[id][0].physMemBase, &dbuf[0]);
@@ -2451,8 +2453,8 @@ mpdFIFO_ReadSingle(int id,
 #ifdef BLOCK_TRANSFER1
   /*   unsigned long offset = ((unsigned long)&dbuf - (unsigned long)&fApv[id][0].fBuffer); */
   unsigned long offset = 0;
-  MPD_DBG("dbuf addr = 0x%lx  fBuffer = 0x%lx  offset = 0x%lx\n",
-  	  (unsigned long)dbuf, (unsigned long)fApv[id][k].fBuffer, (unsigned long)offset);
+  //MPD_DBG("dbuf addr = 0x%lx  fBuffer = 0x%lx  offset = 0x%lx\n",
+  //  (unsigned long)dbuf, (unsigned long)fApv[id][k].fBuffer, (unsigned long)offset);
 
   vmeAdrs = &MPDp[id]->ApvDaq.Data_Ch[channel][0];
   retVal = vmeDmaSendPhys(fApv[id][k].physMemBase+offset,vmeAdrs,(size<<2));
@@ -2485,8 +2487,8 @@ mpdFIFO_ReadSingle(int id,
   else
     {//success=OK;
       *wrec   = (retVal>>2);
-      MPD_DBG("vmeDmaDone returned 0x%x (%d)  wrec = %d\n",
-	      retVal, retVal, *wrec);
+      //MPD_DBG("vmeDmaDone returned 0x%x (%d)  wrec = %d\n",
+      //      retVal, retVal, *wrec);
       int iword=0;
       for(iword =0; iword<*wrec; iword++)
 	{
@@ -2497,7 +2499,7 @@ mpdFIFO_ReadSingle(int id,
 	  printf("0xx%08x   ",LSWAP(fApv[id][k].fBuffer[iword]));
 #endif
 	  /* Byte swap necessary for block transfers */
-	  fApv[id][k].fBuffer[iword] = LSWAP(fApv[id][k].fBuffer[iword]);
+	  //fApv[id][k].fBuffer[iword] = LSWAP(fApv[id][k].fBuffer[iword]);
 	}
 #ifdef DEBUG_BLOCKREAD
       printf("\n");
@@ -2505,7 +2507,7 @@ mpdFIFO_ReadSingle(int id,
     }
 
 #else 
-  //size=78;
+  //size=780;
   for(i=0; i<size; i++) {//printf("mpdread32 going to be excuted %d\n",i);
     dbuf[i] = mpdRead32(&MPDp[id]->ApvDaq.Data_Ch[channel][i]);
     *wrec+=1;
@@ -2858,6 +2860,7 @@ mpdFIFO_ClearAll(int id)
 
   MPDLOCK;
   oldval = mpdRead32(&MPDp[id]->ApvDaq.Readout_Config);
+
   data = oldval | 0x80000000;
 
   mpdWrite32(&MPDp[id]->ApvDaq.Readout_Config, data);
@@ -2944,11 +2947,11 @@ mpdFIFO_ReadAll(int id, int *timeout, int *global_fifo_error) {
 	nread = mpdApvGetBufferAvailable(id, k);
 	// printf(" EC: card %d %d buffer size available = %d\n",id, k,nread);
 	if (nread>0) { // space in memory buffer
-	  err = mpdFIFO_ReadSingle(id, k,fApv[id][k].adc,mpdApvGetBufferPWrite(id, k), &nread, 100); 
+	  err = mpdFIFO_ReadSingle(id, k,fApv[id][k].adc,mpdApvGetBufferPWrite(id, k), &nread, 10); 
 
 	  mpdApvIncBufferPointer(id, k, nread);
 
-	  *global_fifo_error |= err; // ???
+	  *global_fifo_error |= err; // 
 	  //printf(" EC: card %d readsingle done nread=%d, err=%d\n",k,nread,err);
 	  } else { // no space in memory buffer
 	    MPD_ERR("MPD/APV(i2c)/(adc) = %d/%d, no space in memory buffer adc=%d\n",id, k, fApv[id][k].adc);

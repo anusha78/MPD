@@ -22,7 +22,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stddef.h>
-#include "libconfig/libconfig.h"
+//#include "libconfig/libconfig.h"
+#include <libconfig.h>
 #include "jvme.h"
 #include "mpdConfig.h"
 #include "mpdLib.h"
