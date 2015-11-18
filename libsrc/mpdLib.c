@@ -98,6 +98,8 @@ mpdParameters fMpd[(MPD_MAX_BOARDS)+1];
 unsigned short fApvEnableMask[(MPD_MAX_BOARDS)+1];
 int nApv[(MPD_MAX_BOARDS)+1];
 
+extern GEF_VME_BUS_HDL vmeHdl;
+
 /* */
 #define MPD_VERSION_MASK 0xf00f
 #define MPD_SUPPORTED_CTRL_FIRMWARE 0x4003
@@ -246,7 +248,7 @@ mpdInit(UINT32 addr, UINT32 addr_inc, int nmpd, int iFlag)
 	  return(ERROR);
 	}
       
-      //      mpdA24Offset = laddr_csr - addr; //??
+      mpdA24Offset = laddr_csr - addr;
     }
 
   printf("%s: A24 mapping: VME addr=0x%x -> Local 0x%x\n", __FUNCTION__, addr, laddr_csr);
@@ -1564,18 +1566,39 @@ mpdApvGetMaxLatency(int id)
 void
 mpdApvBufferAlloc(int id, int ia) 
 {
+  GEF_STATUS status;
+  GEF_MAP_PTR mapPtr;
+  GEF_VME_DMA_HDL dma_hdl;
+
   fApv[id][ia].fBufSize = 15*fApv[id][ia].fNumberSample*(EVENT_SIZE+2); // at least 6 times larger @@@ increased to 15 -- need improvement
-  fApv[id][ia].fBuffer = (uint32_t *) malloc(fApv[id][ia].fBufSize*sizeof(uint32_t));
+  status = gefVmeAllocDmaBuf (vmeHdl,fApv[id][ia].fBufSize,	
+			      &dma_hdl,&mapPtr);
+  if(status != GEF_STATUS_SUCCESS) 
+    {
+      MPD_ERR("id=%d, ia=%d\n\tgefVmeAllocDmaBuf returned 0x%x\n",id,ia,status);
+    }
+  fApv[id][ia].fBuffer     = (uint32_t *) mapPtr;
+  fApv[id][ia].physMemBase = dmaHdl_to_PhysAddr(dma_hdl);
+  fApv[id][ia].dmaHdl      = dma_hdl;
+/*   fApv[id][ia].fBuffer = (uint32_t *) malloc(fApv[id][ia].fBufSize*sizeof(uint32_t)); */
   fApv[id][ia].fBi1 = 0;
   MPD_DBG("Fifo %d, buffer allocated with word size %d\n",fApv[id][ia].adc, fApv[id][ia].fBufSize);
 }
 
 void 
-mpdApvBufferFree(int id, int ia) {
-  if (fApv[id][ia].fBuffer != 0) {
-    free(fApv[id][ia].fBuffer);
-    MPD_DBG("Fifo %d, buffer released\n",fApv[id][ia].adc);
-  };
+mpdApvBufferFree(int id, int ia) 
+{
+  GEF_STATUS status;
+  if (fApv[id][ia].fBuffer != 0) 
+    {
+      status = gefVmeFreeDmaBuf(fApv[id][ia].dmaHdl);
+      if(status != GEF_STATUS_SUCCESS) 
+	{
+	  MPD_ERR("id=%d, ia=%d\n\tgefVmeFreeDmaBuf returned 0x%x\n",id,ia,status);
+	}
+      /*     free(fApv[id][ia].fBuffer); */
+      MPD_DBG("Fifo %d, buffer released\n",fApv[id][ia].adc);
+    }
 }
 
 void 
@@ -2308,6 +2331,8 @@ mpdFIFO_ReadSingle(int id,
   int success=OK, i, size;
   int nwords; // words available in fifo
   int wmax; // maximum word acceptable
+  uint32_t vmeAdrs=0; // Vme address of channel data
+  int retVal=0;
 
   //  if(id==0) id=mpdID[0];
   if((MPDp[id]==NULL) || (id<0) || (id>21))
@@ -2340,9 +2365,41 @@ mpdFIFO_ReadSingle(int id,
   }
 
   MPDLOCK;
-#ifdef BLOCK_TRANSFER
-  success = BUS_BlockRead(fifo_addr, size, dbuf, &wrec); // trasfer 4 byte words!!
-  MPD_DBG("Block Read fifo ch = %d, words requested = %d, returned = %d\n", channel, size, wrec);
+#define BLOCK_TRANSFER1
+#ifdef BLOCK_TRANSFER1
+  vmeAdrs = MPDp[id]->ApvDaq.Data_Ch[channel][0];
+  retVal = vmeDmaSendPhys(fApv[id][channel].physMemBase,vmeAdrs,(size<<2));
+  if(retVal != 0) 
+    {
+      MPD_ERR("ERROR in DMA transfer Initialization (returned 0x%x\n",retVal);
+      *wrec=0;
+      MPDUNLOCK;
+      return(retVal);
+    }
+
+  /* Wait until Done or Error */
+  retVal = vmeDmaDone();
+  if(retVal==0)
+    {
+      *wrec=0;
+      MPD_ERR("vmeDmaDone returned zero word count\n");
+      MPDUNLOCK;
+      return ERROR;
+    }
+  else if(retVal==ERROR)
+    {
+      *wrec=0;
+      MPD_ERR("vmeDmaDone returned ERROR\n");
+      MPDUNLOCK;
+      return ERROR;
+    }
+  else
+    {
+      *wrec   = (retVal>>2);
+      MPD_DBG("vmeDmaDone returned 0x%x (%d)  wrec = %d\n",
+	      retVal, retVal, *wrec);
+    }
+
 #else
   for(i=0; i<size; i++) {
     dbuf[i] = mpdRead32(&MPDp[id]->ApvDaq.Data_Ch[channel][i*4]);
