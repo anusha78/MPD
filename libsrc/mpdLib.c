@@ -2367,8 +2367,12 @@ mpdFIFO_ReadSingle(int id,
   MPDLOCK;
 #define BLOCK_TRANSFER1
 #ifdef BLOCK_TRANSFER1
+  unsigned long offset = dbuf - fApv[id][channel].fBuffer;
+  MPD_DBG("dbuf addr = 0x%lx  fBuffer = 0x%lx  offset = 0x%lx\n",
+	  (unsigned long)dbuf, (unsigned long)fApv[id][channel].fBuffer, (unsigned long)offset);
+
   vmeAdrs = MPDp[id]->ApvDaq.Data_Ch[channel][0];
-  retVal = vmeDmaSendPhys(fApv[id][channel].physMemBase,vmeAdrs,(size<<2));
+  retVal = vmeDmaSendPhys(fApv[id][channel].physMemBase+offset,vmeAdrs,(size<<2));
   if(retVal != 0) 
     {
       MPD_ERR("ERROR in DMA transfer Initialization (returned 0x%x\n",retVal);
